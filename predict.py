@@ -60,6 +60,12 @@ def crop_and_scale(img, res=(224, 224), interpolation=cv2.INTER_CUBIC, zoom=0.1)
         px = int(img.shape[1] * zoom); py = int(img.shape[0] * zoom); img = img[py:-py, px:-px]
     return cv2.resize(img, res, interpolation=interpolation)
 
+# NOTE on preprocessing: this model was trained on the center-crop above applied to QPath-style
+# ~800x600 exports. Applying a different crop at inference (e.g. ultrasound-sector detection)
+# shifts inputs off the training distribution and DEGRADES accuracy — verified empirically. Robust
+# multi-format support requires a *sector-consistent retrain* (apply sector detection at both train
+# and inference), not an inference-only patch. Until then, feed frames in the trained format.
+
 
 def get_device():
     if torch.backends.mps.is_available(): return torch.device("mps")

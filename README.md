@@ -23,10 +23,14 @@ reliability ceiling (κ 0.835), and far above off-the-shelf EchoPrime on the sam
 Per-view recall: PSLA 0.95, PSSA 0.89, A4C 0.89, SX 0.80, IVC 0.87, **Lung (gate) 0.88**;
 Indeterminate 0.37 (intentionally a low-confidence "reject" bucket).
 
-**Orientation** (PSLA/IVC): 0.999 accuracy distinguishing EM vs cardiology, and **98.1%** of
-cardiology-orientation PSLA/IVC loops are correctly recognized as PSLA/IVC (convention-invariant).
-*Caveat:* orientation was trained/tested with synthetic horizontal flips of ED clips; the orientation
-numbers should be confirmed on real cardiology-convention data (external validation, in progress).
+**Orientation** (PSLA/IVC) — **PRELIMINARY, do not rely on yet.** On synthetic horizontal flips of
+ED clips the orientation head scores ~0.999 and 98.1% convention-invariance — but these numbers
+**overstate real-world performance**: on an out-of-distribution study from a *different machine*
+(Philips Compact 5500 vs. the Sparq used in training) the head confidently mislabeled a
+clearly-EM IVC as cardiology. The head appears to have learned synthetic-flip / machine-specific
+cues rather than true anatomical left/right. Orientation detection therefore requires **real
+cross-convention, multi-machine data** before it can be reported as validated. (View classification
+and the gate, by contrast, generalized to that other machine.)
 
 ## Install
 
@@ -81,8 +85,13 @@ expect the labeled loops, which are **not** distributed (patient data under IRB)
 
 ## Intended use & limitations
 
-- ED-POCUS, first-frame view triage + orientation + non-cardiac gate. Single-center training data;
-  **external validation pending**, and orientation detection is currently validated on synthetic flips.
+- ED-POCUS, first-frame view triage + non-cardiac gate. Single-center training data; **external
+  validation pending.** View + gate generalized to a second machine (Philips Compact 5500) in
+  informal testing; **orientation detection did not** and is preliminary (see Performance).
+- **Preprocessing is format-bound.** Trained on the center-crop of QPath-style ~800×600 exports.
+  Different export layouts/aspect ratios may reduce reliability, and applying a different crop (e.g.
+  ultrasound-sector detection) *at inference only* degrades accuracy (train/inference mismatch) —
+  robust multi-format support needs a sector-consistent retrain.
 - `Indeterminate` is a reject bucket, not a reliable target class.
 - Not validated for, and not intended for, autonomous clinical decision-making.
 
