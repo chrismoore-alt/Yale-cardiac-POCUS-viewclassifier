@@ -1,31 +1,32 @@
-# ED-Native Echo View + Non-Cardiac Gate Classifier
+# ED Echo View + Orientation + Non-Cardiac Gate Classifier
 
-A view classifier for **emergency-department point-of-care echocardiography (ED-POCUS)** that labels
-each ultrasound loop as one of:
+A point-of-care echocardiography classifier for the **emergency department (ED)** that, for each
+ultrasound loop, reports:
 
-```
-PSLA · PSSA · A4C · SX · IVC · Lung · Indeterminate
-```
+- **view** — `PSLA · PSSA · A4C · SX · IVC · Lung · Indeterminate` (orientation-invariant)
+- **is_cardiac** — a **gate**: `True` for the five cardiac views, `False` for Lung / Indeterminate
+- **orientation** (PSLA/IVC only) — `EM` (emergency-medicine indicator-left) vs `cards` (cardiology
+  indicator-right), so a loop can be flipped to the cardiology convention before it is fed to a
+  cardiology-trained model (PanEcho, EchoPrime, …)
+- **action** — `gate_out` | `flip_then_use` | `use`
 
-Unlike cardiology-trained view classifiers, it (1) works in the **native ED probe-indicator
-orientation** (no horizontal-flip correction needed), and (2) includes an explicit **Lung /
-Indeterminate gate** so non-cardiac loops can be triaged *before* they reach a downstream model
-(PanEcho, EchoPrime, etc.) that would otherwise aggregate over them.
+Unlike cardiology-trained view classifiers, it (1) works in the **native ED orientation**, (2) has an
+explicit **non-cardiac gate** so lung/off-target loops can be triaged out *before* a downstream model
+aggregates over them, and (3) **identifies and can standardize orientation** across ED conventions.
 
-> **Research use only. Not a medical device.** Outputs require clinician review and are not a
-> diagnostic determination.
+> **Research use only. Not a medical device.** Outputs require clinician review.
 
-## Performance (held-out test: 2,055 loops, 259 unseen patients)
+## Performance (held-out test: unseen patients)
 
-| Metric | This model | EchoPrime (off-the-shelf, best-of-both) |
-|---|---:|---:|
-| Accuracy | **0.840** | 0.607 |
-| Cohen's κ | **0.810** | 0.545 |
+**View** (orientation-invariant): accuracy 0.869, **Cohen's κ 0.838** — at the expert–expert
+reliability ceiling (κ 0.835), and far above off-the-shelf EchoPrime on the same task (κ 0.545).
+Per-view recall: PSLA 0.95, PSSA 0.89, A4C 0.89, SX 0.80, IVC 0.87, **Lung (gate) 0.88**;
+Indeterminate 0.37 (intentionally a low-confidence "reject" bucket).
 
-κ 0.810 is at the expert–expert reliability ceiling (κ 0.835). Per-class recall (ours vs EchoPrime):
-**A4C 0.909 vs 0.390**, **Lung 0.851 vs 0.000** (EchoPrime has no Lung class), PSLA 0.877 (no flip
-needed), PSSA 0.877, SX 0.842, IVC 0.870. The `Indeterminate` class is intentionally a low-confidence
-"reject" bucket (recall 0.35; it is intrinsically ambiguous — expert–expert κ ≈ 0.28 there).
+**Orientation** (PSLA/IVC): 0.999 accuracy distinguishing EM vs cardiology, and **98.1%** of
+cardiology-orientation PSLA/IVC loops are correctly recognized as PSLA/IVC (convention-invariant).
+*Caveat:* orientation was trained/tested with synthetic horizontal flips of ED clips; the orientation
+numbers should be confirmed on real cardiology-convention data (external validation, in progress).
 
 ## Install
 
@@ -33,68 +34,67 @@ needed), PSSA 0.877, SX 0.842, IVC 0.870. The `Indeterminate` class is intention
 pip install torch torchvision opencv-python numpy        # + scikit-learn only if you retrain
 ```
 
-Runs on CPU, CUDA, or Apple-silicon MPS (auto-detected). The model is a ConvNeXt-Tiny
-(~28M params); shipped weights are fp16 (~56 MB).
+Runs on CPU, CUDA, or Apple-silicon MPS (auto-detected). ConvNeXt-Tiny backbone; shipped weights are
+fp16 (~56 MB) at `weights/ed_view_orient_fp16.pt`.
 
 ## Predict
 
 ```bash
-# a folder of .mp4 loops:
-python predict.py --input path/to/clips --out predictions.csv
-
-# a tree of study folders (recurses for *.mp4):
-python predict.py --input path/to/studies --out predictions.csv
-
-# a single loop:
-python predict.py --input clip.mp4
+python predict.py --input path/to/clips --out predictions.csv    # folder of .mp4 (recurses)
+python predict.py --input clip.mp4                               # single loop
 ```
 
-`predictions.csv` has one row per loop: `path, view, confidence, is_cardiac, view_2, prob_2`.
-Loops with `is_cardiac = False` (Lung / Indeterminate) are the ones to gate out.
+`predictions.csv` columns: `path, view, confidence, is_cardiac, orientation, action, view_2, prob_2`.
+
+**Actions:** `gate_out` (non-cardiac/uncertain → drop from cardiac analysis) · `flip_then_use` (cardiac
+PSLA/IVC in EM orientation → horizontally flip before a cardiology-trained model) · `use`.
+
+Example (one study):
+```
+clip_0001  PSLA           0.999  cardiac  EM   flip_then_use
+clip_0003  PSSA           0.998  cardiac  --   use
+clip_0005  Lung           1.000  non-card --   gate_out
+clip_0007  A4C            1.000  cardiac  --   use
+```
 
 ## Test it on your own reviewed clips
 
 1. Put your `.mp4` loops in a folder.
-2. (Optional) make a `labels.csv` with two columns, `filename,view`, using the label set above.
-3. Run:
-
-```bash
-python predict.py --input your_clips/ --labels labels.csv --out your_predictions.csv
-```
-
-It prints accuracy and a confusion matrix vs. your labels, and writes per-loop predictions.
+2. (Optional) `labels.csv` with columns `filename,view` in the 7-view vocab above.
+3. Run `python predict.py --input your_clips/ --labels labels.csv --out results.csv` — it prints view
+   accuracy + a confusion matrix vs. your reads, and writes per-loop predictions.
 
 ## How it was trained (code included; data not distributed)
 
-- **Labels:** expert clip-level view annotations from a blinded ED-POCUS re-review (13,801 loops,
-  7 classes incl. Lung/Indeterminate), modal label per loop.
-- **Input:** first frame per loop, aspect-preserving crop to 224×224.
-- **Split:** by patient, 70/15/15 (no study straddles splits).
-- **Model/opt:** ImageNet ConvNeXt-Tiny fine-tuned, AdamW (lr 1e-4, wd 0.05), cosine schedule,
-  12 epochs, class-weighted cross-entropy. **No horizontal-flip augmentation** (learns ED
-  orientation natively). Best-validation checkpoint retained.
+- **Labels:** expert clip-level view annotations from a blinded ED-POCUS re-review (13,801 loops).
+- **Input:** first frame, aspect-preserving crop to 224×224. **Split by patient** (70/15/15).
+- **Orientation via selective flipping:** because only **PSLA and IVC** differ between EM and
+  cardiology conventions (PSSA/A4C/SX are congruent under the "double reverse"), training flips **only
+  PSLA/IVC** loops to synthesize cardiology-orientation examples — yielding a 9-way label space
+  {PSLA_EM, PSLA_cards, IVC_EM, IVC_cards, PSSA, A4C, SX, Lung, Indeterminate} that collapses to the
+  7 views plus a PSLA/IVC orientation.
+- **Model/opt:** ImageNet ConvNeXt-Tiny fine-tuned; AdamW (1e-4, wd 0.05); cosine schedule; 12 epochs;
+  class-weighted cross-entropy; **no whole-image flip augmentation** for the congruent views.
 
-`build_dataset.py` and `train.py` are included for transparency; they expect the labeled loops,
-which are **not** distributed (patient data under IRB). See each script's header for the expected
-inputs.
+`build_dataset.py`, `build_orient_dataset.py`, and `train.py` are included for transparency; they
+expect the labeled loops, which are **not** distributed (patient data under IRB).
 
 ## Intended use & limitations
 
-- ED-POCUS, first-frame view triage. Single-center training data; **external validation pending.**
-- First-frame (not full-clip) input; multi-frame input is a natural extension.
+- ED-POCUS, first-frame view triage + orientation + non-cardiac gate. Single-center training data;
+  **external validation pending**, and orientation detection is currently validated on synthetic flips.
 - `Indeterminate` is a reject bucket, not a reliable target class.
 - Not validated for, and not intended for, autonomous clinical decision-making.
 
 ## Data & ethics
 
 Trained on de-identified ED-POCUS loops under a Yale IRB-exempt determination. **No patient media or
-labels are distributed** — only the trained model weights and code. Confirm your own institutional
-permissions before deploying on clinical data.
+labels are distributed** — only trained weights and code.
 
 ## Citation
 
-Moore C, et al. *An ED-native echocardiographic view and non-cardiac gate classifier.* (in
-preparation), 2026.
+Moore C, et al. *An ED-native echocardiographic view, orientation, and non-cardiac gate classifier.*
+(in preparation), 2026.
 
 ## License
 
