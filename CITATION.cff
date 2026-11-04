@@ -1,0 +1,30 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "Yale Cardiac POCUS View Classifier"
+abstract: >-
+  An emergency-department-native echocardiographic view classifier with a
+  non-cardiac gate and a (preliminary) orientation head, for triaging
+  point-of-care ultrasound loops before downstream cardiology-trained models.
+type: software
+authors:
+  - family-names: Moore
+    given-names: Christopher L.
+    affiliation: "Yale University School of Medicine"
+license: MIT
+version: "1.0.0"
+date-released: "2026-11-04"
+keywords:
+  - echocardiography
+  - point-of-care ultrasound
+  - view classification
+  - emergency medicine
+  - deep learning
+preferred-citation:
+  type: article
+  title: "An ED-native echocardiographic view, orientation, and non-cardiac gate classifier"
+  authors:
+    - family-names: Moore
+      given-names: Christopher L.
+      affiliation: "Yale University School of Medicine"
+  year: 2026
+  notes: "Manuscript in preparation."
