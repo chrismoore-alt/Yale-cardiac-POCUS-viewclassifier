@@ -11,8 +11,8 @@ from torch.utils.data import Dataset, DataLoader
 from torchvision.transforms import v2 as T
 from sklearn.metrics import classification_report, confusion_matrix, cohen_kappa_score
 
-DS = "/Users/christophermoore/ai_echo_local/view_ds/view_dataset.npz"
-CKPT = "/Users/christophermoore/ai_echo_local/view_ds/ed_view_convnext.pt"
+DS = "/path/to/ai_echo_local/view_ds/view_dataset.npz"
+CKPT = "/path/to/ai_echo_local/view_ds/ed_view_convnext.pt"
 dev = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
 
 d = np.load(DS, allow_pickle=True)
@@ -79,5 +79,5 @@ print(classification_report(Yt, P, target_names=CLASSES, digits=3))
 print("confusion (rows=true, cols=pred):"); print("      "+" ".join(f"{c[:4]:>5s}" for c in CLASSES))
 cm = confusion_matrix(Yt, P)
 for i,c in enumerate(CLASSES): print(f"{c[:5]:>5s} "+" ".join(f"{v:5d}" for v in cm[i]))
-np.savez(f"/Users/christophermoore/ai_echo_local/view_ds/test_preds.npz", pred=P, true=Yt, classes=np.array(CLASSES))
+np.savez(f"/path/to/ai_echo_local/view_ds/test_preds.npz", pred=P, true=Yt, classes=np.array(CLASSES))
 print(f"\nsaved model -> {CKPT}")

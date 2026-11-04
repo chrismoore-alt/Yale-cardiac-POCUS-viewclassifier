@@ -5,8 +5,8 @@
 # 9 classes -> view is recoverable, and PSLA/IVC carry an orientation.
 import numpy as np, os
 
-SRC = "/Users/christophermoore/ai_echo_local/view_ds/view_dataset.npz"
-OUT = "/Users/christophermoore/ai_echo_local/view_ds/orient_dataset.npz"
+SRC = "/path/to/ai_echo_local/view_ds/view_dataset.npz"
+OUT = "/path/to/ai_echo_local/view_ds/orient_dataset.npz"
 
 d = np.load(SRC, allow_pickle=True)
 X, y, cases, split = d["X"], d["y"], d["cases"], d["split"]

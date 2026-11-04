@@ -23,8 +23,8 @@ def crop_and_scale(img, res=(224, 224), interpolation=cv2.INTER_CUBIC, zoom=0.1)
         img = img[py:-py, px:-px]
     return cv2.resize(img, res, interpolation=interpolation)
 
-OUT = "/Users/christophermoore/ai_echo_local"
-LAB = f"{OUT}/outputs/from_cm433/expert_view_labels_long.csv"
+OUT = "/path/to/ai_echo_local"
+LAB = f"{OUT}/outputs/expert_labels/expert_view_labels_long.csv"
 DL  = f"{OUT}/downloads"
 DS  = f"{OUT}/view_ds"
 os.makedirs(DS, exist_ok=True)
